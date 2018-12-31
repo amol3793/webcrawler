@@ -145,6 +145,7 @@ class WebCrawler(object):
     def run(self):
 
         # open file
+        #NOTE: for now file handler is in "w" mode so it will rewrite on every run.
         with open(self._stored_url_file_path, 'w') as fh:
 
             # check if self._root_url is valid
@@ -269,5 +270,21 @@ class WebCrawler(object):
 if __name__ == "__main__":
 
     input_url = raw_input("Provide URL to crawl: ")
-    wc = WebCrawler()
+    input_depth = raw_input("Provide maximum depth to crawl: ")
+
+    if input_depth.isdigit():
+        input_depth = int(input_depth)
+    else:
+        input_depth = None
+
+    if input_url and input_depth :
+        wc = WebCrawler(start_url=input_url, max_depth=input_depth)
+    elif input_url:
+        wc = WebCrawler(start_url=input_url)
+    elif input_depth :
+        wc = WebCrawler(max_depth=input_depth)
+    else:
+        wc = WebCrawler()
+
+        
     wc.run()
