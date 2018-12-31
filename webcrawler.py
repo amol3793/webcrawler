@@ -44,9 +44,12 @@ class Url(object):
             return url_validator(url)
 
         except ValidationFailure as e:
+
             app_logger.info("{} : Skipping since not a valid url".format(url))
             return False
+
         except Exception as e:
+
             app_logger.error("{} : Skipping as {}".format(url, e))
             return False
 
@@ -86,20 +89,19 @@ class Url(object):
             self._url = input_url
             self._url_host_name = url_host
 
-    def url_visited_msg(self, visited_time=None):
+    def url_visited_success_msg(self):
+        msg = "URL: {} : STATUS: success".format(self._url)
+        return msg
 
-        if not self._url:
-            return "url not found"
-
-        msg = "{} : visited successfully ".format(self._url)
-
-        if visited_time:
-            msg += "at {}".format(visited_time)
-
+    def url_visited_failure_msg(self):
+        msg = "URL: {} : STATUS: failed".format(self._url)
         return msg
 
 
     def get_response_obj(self, base_url=None, base_host=None):
+        '''
+        Go to url and fetch the response obj
+        '''
 
         if not base_url:
             base_url = self._url
@@ -118,13 +120,21 @@ class Url(object):
 
         except Exception as e:
             failure_logger.exception(
-                "Error in get_response_obj, Error_msg:{}".format(e))
+                "URL:{} ,STATUS: Error in get_response_obj, ERROR_MSG:{}".format(base_url, e))
             return None
 
 
 class WebCrawler(object):
+    '''
+    NOTE1:
+    webcrawler statrs crawling with root url and crawls each of the urls present in the response
+    upto given depth
 
-    def __init__(self, start_url="http://python.org/", max_depth=2,
+    NOTE2:
+    Using InMemoryDataStore for datastore instead to any sql/nosql db
+    '''
+
+    def __init__(self, start_url="http://python.org/", max_depth=5,
      file_path="url_crawled_history.txt", data_store=InMemoryDataStore()):
         self._root_url = start_url
         self._max_depth = max_depth
@@ -135,26 +145,24 @@ class WebCrawler(object):
     def run(self):
 
         # open file
-        fh_urls = open(self._stored_url_file_path, 'w')
+        with open(self._stored_url_file_path, 'w') as fh:
 
-        # check if self._root_url is valid
-        url_obj = Url(self._root_url)
+            # check if self._root_url is valid
+            url_obj = Url(self._root_url)
 
-        if not url_obj.url_str:
+            if not url_obj.url_str:
 
-            failure_logger.exception("Invalid url to start crawling")
+                failure_logger.exception("Invalid url to start crawling")
 
-            # for console
-            print "INVALID URL : Please provide a valid url to start crawling."
+                # for console
+                print "INVALID URL : Please provide a valid url to start crawling."
 
-            return
+                return
 
-        # start crawling with root url
-        self.crawl(url_obj, fh_urls)
+            # start crawling with root url
+            self.crawl(url_obj, fh)
 
-        # close file
-        fh_urls.close()
-
+        
 
     def is_url_visited(self, url):
         return self._datastore.get(url)
@@ -167,9 +175,14 @@ class WebCrawler(object):
     def validate_and_handle_response_obj(self, response):
         '''
         Implement this method if need more validations on response.
-        like response status 200, 3XX, 4XX, 5XX.
+        like response status 2XX, 3XX, 4XX, 5XX.
+
+        Perform action on the basis of status code
         '''
-        return None
+        if not response:
+            return "response is None"
+
+        pass
 
 
     def perform_business_action(self, response):
@@ -205,11 +218,11 @@ class WebCrawler(object):
 
             if _depth > self._max_depth:  # if depth exceed maximum depth stop crawling further
                 app_logger.info(
-                    "URL:{}, Action: Skipping, Reason: reached maximum depth of crawling".format(base_url))
+                    "URL:{}, STATUS: Skipping, Reason: reached maximum depth of crawling".format(base_url))
                 return
             elif self.is_url_visited(base_url):  # web page already visited
                 app_logger.info(
-                    "URL:{}, Action: Skipping, Reason: already visited".format(base_url))
+                    "URL:{}, STATUS: Skipping, Reason: already visited".format(base_url))
                 return
 
             try:
@@ -219,16 +232,15 @@ class WebCrawler(object):
 
                 if error:
                     app_logger.error(
-                        "URL:{}, Action: Skipping, Reason:{}".format(base_url, error))
+                        "URL:{}, STATUS: Skipping, Reason:{}".format(base_url, error))
                     return
-
-                app_logger.debug(
-                    "URL:{}, Action: crawling started.".format(base_url))
 
                 # do some stuff according to requirement.
                 self.perform_business_action(response)
 
-                # mark url visited
+                app_logger.info(url_obj.url_visited_success_msg())
+
+                # mark url visited in datastore
                 self.mark_url_visited(base_url)
 
             except Exception as e:
